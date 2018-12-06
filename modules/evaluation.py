@@ -1,18 +1,18 @@
 import os
-import numpy as np 
+import numpy as np
 import mir_eval
 
 def CSR(estFile, refFile, debug=False):
 	"""
-	Description: 
+	Description:
 		This function takes estimated filename.lab and reference annotations filename.lab and reports CSR values using mir_eval
 
 	"""
 	(ref_intervals, ref_labels) = mir_eval.io.load_labeled_intervals(refFile)
 	(est_intervals, est_labels) = mir_eval.io.load_labeled_intervals(estFile)
 
-	est_intervals, est_labels = mir_eval.util.adjust_intervals(est_intervals, est_labels, 
-	                                           ref_intervals.min(), ref_intervals.max(), 
+	est_intervals, est_labels = mir_eval.util.adjust_intervals(est_intervals, est_labels,
+	                                           ref_intervals.min(), ref_intervals.max(),
 	                                           mir_eval.chord.NO_CHORD, mir_eval.chord.NO_CHORD)
 	(intervals, ref_labels, est_labels) = mir_eval.util.merge_labeled_intervals(ref_intervals, ref_labels, est_intervals, est_labels)
 	durations = mir_eval.util.intervals_to_durations(intervals)
@@ -25,7 +25,7 @@ def CSR(estFile, refFile, debug=False):
 
 	comparisons = mir_eval.chord.mirex(ref_labels, est_labels)
 	s3 = mir_eval.chord.weighted_accuracy(comparisons, durations)
-	
+
 	if debug:
 		print(f"Evaluation for {estFile}: \nCSR Root: {s1}\nCSR MajMin: {s2}\nCSR mirex: {s3}")
 
@@ -43,14 +43,19 @@ def CSRMeans(estFolder, refFolder, genre=""):
 	for subdir, dirs, files in os.walk(estFolder):
 		for filename in files:
 
-			print(f"Evaluating for {filename}:\n")
+			# Extracting genre for IDMT-SMT Guitar style
+			#f = filename.split("_")[1]
 
-			f = filename.split("_")
-			if filename.endswith('.lab') and (f[2] == genre or genre == ""):
+			# Extracting genre for GuitarSet style filename
+			file_genre = filename.split("_")[1].split("-")[0][:-1]
+
+			if filename.endswith('.lab') and (file_genre == genre or genre == ""):
+
+				print(f"Evaluating for {filename}:\n")
 
 				estFilePath = os.path.join(estFolder, filename)
 				refFilePath = os.path.join(refFolder, filename)
-				
+
 				csr.append(CSR(estFilePath, refFilePath, debug=True))
 
 	csrMeans = np.mean(np.asarray(csr), axis=0)

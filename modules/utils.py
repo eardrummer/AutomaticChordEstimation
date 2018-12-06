@@ -1,8 +1,10 @@
 import os
-import numpy as np 
+import numpy as np
 import librosa
 from scipy.signal import find_peaks
-from . import templates
+from scipy.signal import fftconvolve
+from matplotlib.mlab import find
+import templates
 import matplotlib.pyplot as plt
 import shutil
 import csv
@@ -13,7 +15,7 @@ def matchTemplate(chromaVector=[1,0,0,0,1,0,0,1,0,0,0,0]):
 	"""
 	Description:
 
-	Given a 12 dimensional chroma vector from a frame like [0.8, 0.6, 0.1 .... ] 
+	Given a 12 dimensional chroma vector from a frame like [0.8, 0.6, 0.1 .... ]
 	It returns best matching chord Label from the template file.
 
 	"""
@@ -22,7 +24,7 @@ def matchTemplate(chromaVector=[1,0,0,0,1,0,0,1,0,0,0,0]):
 	chromaVector = chromaVector/np.max(chromaVector)
 	chromaVector[chromaVector < 0.3] = 0
 
-	templateFileName = os.path.join(TEMPLATE_PATH,'sevenths.json')
+	templateFileName = os.path.join(TEMPLATE_PATH,'triads.json')
 
 	if not os.path.isfile(templateFileName):
 		templates.createSevenths()
@@ -44,7 +46,7 @@ def matchNoteLevel(chromaVector=[1,0,0,0,1,0,0,0,0,0,0,0]):
 	"""
 	Description:
 		(EXPERIMENTAL)
-	Given a 12 dimensional chroma vector from a frame like [0.8, 0.6, 0.1 .... ] 
+	Given a 12 dimensional chroma vector from a frame like [0.8, 0.6, 0.1 .... ]
 	It returns best matching chord Label from the template file.
 
 	Experimenting with all types of templates 'allCombinations.json'
@@ -70,15 +72,15 @@ def matchNoteLevel(chromaVector=[1,0,0,0,1,0,0,0,0,0,0,0]):
 
 def getVoicingThreshold(audio, hopLength, method='rmsEnergy'):
 	"""
-	Description: 
+	Description:
 		This function takes an audio file (read as an array; example obtain from audio=librosa.load(filename.wav)) and returns a threshold of voicing energy.
 
 	"""
 
 	if method == 'rmsEnergy':
-		rmsEnergy = librosa.feature.rmse(audio, 
-										frame_length=2*hopLength, 
-										hop_length=hopLength, 
+		rmsEnergy = librosa.feature.rmse(audio,
+										frame_length=2*hopLength,
+										hop_length=hopLength,
 										center=True)
 
 		peaks, _ = find_peaks(rmsEnergy[0], distance=30)
@@ -98,9 +100,9 @@ def getVoicingActivity(audioSegment, hopLength, method='rmsEnergy', threshold=0.
 	if method == 'rmsEnergy':
 		if threshold == 0.0: print(f"ERROR:Threshold was NOT calculated before utils.getVoicingActivity().")
 
-		rmsEnergy = librosa.feature.rmse(audioSegment, 
-								frame_length=2*hopLength, 
-								hop_length=hopLength, 
+		rmsEnergy = librosa.feature.rmse(audioSegment,
+								frame_length=2*hopLength,
+								hop_length=hopLength,
 								center=True)
 
 		voicingActivity = [1] * rmsEnergy.shape[1]
@@ -114,7 +116,7 @@ def getVoicingActivity(audioSegment, hopLength, method='rmsEnergy', threshold=0.
 		#plt.hlines(thres, 0, len(rmsEnergy[0]))
 
 	elif method == 'periodicity':
-		frames = librosa.util.frame(audioSegment, 
+		frames = librosa.util.frame(audioSegment,
 								    frame_length=2*hopLength,
 									hop_length=hopLength)
 		for indx in range(len(frames)):
@@ -127,24 +129,24 @@ def getVoicingActivity(audioSegment, hopLength, method='rmsEnergy', threshold=0.
 
 def getOnsets(audio, sampleRate, hopLength):
 	"""
-	Description: 
+	Description:
 		Given an audio file as an array (obtain from audio=librosa.load(filename.wav))
 		this returns a list of sample numbers where onsets are found to occur.
 
 
 	"""
 
-	o_env = librosa.onset.onset_strength(audio, sampleRate, 
-										aggregate=np.mean, 
+	o_env = librosa.onset.onset_strength(audio, sampleRate,
+										aggregate=np.mean,
 										detrend=True,
-										fmax=8000, 
+										fmax=8000,
 										n_mels=256,
 										lag=50,
 										hop_length=hopLength)
 
 	onset_samples = librosa.onset.onset_detect(onset_envelope=o_env,
 											units='samples',
-											sr=sampleRate, 
+											sr=sampleRate,
 											hop_length=hopLength,
 											backtrack=True,
 											pre_max=20,
@@ -160,7 +162,7 @@ def getOnsets(audio, sampleRate, hopLength):
 
 def segmentByOnsets(onset_boundaries, minAudioLength):
 	"""
-	Description: 
+	Description:
 		This function takes a list of sample numbers that represents onset occurences in the audio and returns tuples
 		[[start Segment, end Segment],...]
 		 where each segment of audio between onsets starts and ends. It ignores segments of less than minAudioLength Samples
@@ -172,13 +174,16 @@ def segmentByOnsets(onset_boundaries, minAudioLength):
 
 	audioSegmentBoundaries = []
 	k = 0
+
 	while k < (len(onset_boundaries) - 1):
 
 		start_boundary = onset_boundaries[k]
 		# Skip onset boundaries that are less than minAudioLength Samples away from previous onset boundary
 		while onset_boundaries[k+1] - onset_boundaries[k] < minAudioLength:
 			k += 1
-			if k == len(onset_boundaries)-1: break
+			if k == len(onset_boundaries)-1:
+				k -= 1
+				break
 
 		end_boundary = onset_boundaries[k+1]
 
@@ -227,7 +232,7 @@ def makeSingleFolderDataset(dataPath, finalPath):
 					#print(f"copying {file} to {newName}")
 					shutil.copy(os.path.join(subdir,file), os.path.join(RESOURCE_PATH, newName))
 
-				s = subdir.split('\\')[-1]	
+				s = subdir.split('\\')[-1]
 				if file.endswith(".csv") and not dirs and s == 'chords':
 					shutil.copy(os.path.join(subdir,file), os.path.join(RESOURCE_PATH, newName))
 
@@ -240,7 +245,7 @@ def makeAnnotationsFolder(dataPath, annotationsPath):
 
 	PARAMETERS:
 
-		>>dataPath should contain all the 
+		>>dataPath should contain all the
 			filename.wav
 			filename.csv
 
@@ -292,8 +297,8 @@ def convertChordLabelToHARTE(chordLabel):
 	"""
 	Helper function:
 
-	Description: 
-		This takes in a chordLabel as in the chord annotations in IDMT-SMT Guitar dataset and converts them into 
+	Description:
+		This takes in a chordLabel as in the chord annotations in IDMT-SMT Guitar dataset and converts them into
 		standard chord label syntax according to HARTE
 		[Harte, C. (2010). Towards automatic extraction of harmony information from music signals (Doctoral dissertation)]
 
@@ -326,13 +331,13 @@ def convertChordLabelToHARTE(chordLabel):
 	        if bestShortHandLength < len(c):
 	            shortHand = c
 	            bestShortHandLength = len(c)
-	            
+
 	# TODO: add extra intervals also to the HARTE label name, currently IDMT-SMT Guitar Dataset doesn't have them comma separated
 	#intervals = extraName.split(shortHand)[1]
 
 	# Collect all the parts of the HARTE label and return
 
-	finalName =  rootName + modifier 
+	finalName =  rootName + modifier
 	if shortHand != "":
 		finalName = finalName + ":" + shortHand
 
@@ -357,3 +362,73 @@ def is_subseq(x, y):
 			x.pop(0)
 
 	return not x
+
+
+
+
+def getEndPoints(audioSegment, sampleRate):
+	#TODO: Find end points for an audio from here
+	k = 1
+
+def isHarmonicContent(audioSegment, sampleRate):
+	f0_estimate = freq_from_AutoCorrelation(audioSegment, sampleRate)
+	# Non Harmonic signal has non periodic autocorrelation and estimated fundamental will be high.
+	# TODO: Show more evidence.
+	if f0_estimate < 90:
+		return True
+
+	else:
+		return False
+
+
+def freq_from_AutoCorrelation(audioSegment, sampleRate):
+	"""
+	Description:
+		This function estimates a single frequency from the autocorrelation.
+
+		It first calculates the autocorrelation (keeping only half of it. Since autocorrelation is symmetric)
+		Then it finds the
+
+
+	"""
+	corr = fftconvolve(audioSegment, audioSegment[::-1], mode='full')
+	corr = corr[len(corr)//2:]
+
+	d = np.diff(corr)
+	start = find(d > 0)[0]
+
+	peak = np.argmax(corr[start:]) + start
+	px, py = parabolic(corr, peak)
+
+
+	return sampleRate/px
+
+def plotCepstrum(audioSegment, sampleRate):
+
+	cepstrum = librosa.feature.mfcc(audioSegment, sampleRate, n_mfcc=50)
+	return cepstrum
+
+
+def parabolic(f, x):
+    """Quadratic interpolation for estimating the true position of an
+    inter-sample maximum when nearby samples are known.
+
+    f is a vector and x is an index for that vector.
+
+    Returns (vx, vy), the coordinates of the vertex of a parabola that goes
+    through point x and its two neighbors.
+
+    Example:
+    Defining a vector f with a local maximum at index 3 (= 6), find local
+    maximum if points 2, 3, and 4 actually defined a parabola.
+
+    In [3]: f = [2, 3, 1, 6, 4, 2, 3, 1]
+
+    In [4]: parabolic(f, argmax(f))
+    Out[4]: (3.2142857142857144, 6.1607142857142856)
+
+    """
+    xv = 1/2. * (f[x-1] - f[x+1]) / (f[x-1] - 2 * f[x] + f[x+1]) + x
+    yv = f[x] - 1/4. * (f[x-1] - f[x+1]) * (xv - x)
+
+    return (xv, yv)
